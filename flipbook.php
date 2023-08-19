@@ -18,6 +18,7 @@ define( 'flipbook\INC', DIR.'inc/');
 define( 'flipbook\POST_TYPE', 'flipbook');
 define( 'flipbook\TEMPLATES', DIR.'assets/templates/');
 define( 'flipbook\JS', URL.'assets/js/');
+define( 'flipbook\CSS', URL.'assets/css/');
 
 
 $fbglobal = array( 
