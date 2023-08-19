@@ -1,4 +1,4 @@
-=== Free Flipbook WordPress ===
+=== Flipbook WordPress ===
 Contributors: Ted Tang
 Donate link: 
 Tags: flipbook, flip book, pdf viewer, pdf flipbook, pdf to flip book, free
