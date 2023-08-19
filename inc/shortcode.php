@@ -41,6 +41,9 @@ function shortcode_handler($atts, $content='') {
         'book-template'=> 'default'
     ], $atts);
 
+    $page_width = 461;
+    $page_height = 600;
+
     ob_start();
 
     $post_ID = $atts['id'];
@@ -65,12 +68,17 @@ function shortcode_handler($atts, $content='') {
 
 
 
+
     // The Query
     $the_query = new WP_Query( $args );
     $l=0;
     // The Loop
     while ( $the_query->have_posts() ) :
-        $the_query->the_post(); ?>
+    
+    $the_query->the_post(); 
+    $pdf_link = get_field('flipbook_pdf');
+    ?>
+
     <!-- BEGIN BOOK -->
     <div class="page-wrapper">
         <div class="flipbook-viewport">
@@ -81,24 +89,26 @@ function shortcode_handler($atts, $content='') {
                     <!-- Previous button -->
                     <div ignore="1" class="previous-button"></div>
                     <!-- BEGIN PAGES -->   
-                    <?php if( have_rows('flipbook_pages') ):
-                    $j = 1;
-                    ?> 
-                    <?php while( have_rows('flipbook_pages') ): the_row(); 
-                        // vars
-                        $image_single = get_sub_field('flipbook_page_image'); 
-                        $size ="large";
-                        $html = get_sub_field('flipbook_page_html');
-                        $url = get_sub_field('flipbook_page_url');
-                        if ( !empty($url) ){?>
-                            <div><iframe title="Page <?php echo $j; ?>" src="<?php echo $url ?>" style="position: absolute; height: 100%; width:100%" frameborder="0"></iframe></div>
-                        <?php } elseif( !empty($html) ){?>
-                            <div><?php echo $html; ?></div>
-                        <?php } else { ?>
-                            <div style="background-image: url(<?php echo $image_single['sizes'][ $size ] ?>)"></div>
-                        <?php } ?>
-                    <?php $j++; endwhile; ?> 
-                    <?php endif; ?>
+                    <?php 
+                    
+                    if ( empty($pdf_link) && have_rows('flipbook_pages') ) {
+                        $j = 1;
+                        ?> 
+                        <?php while( have_rows('flipbook_pages') ): the_row(); 
+                            // vars
+                            $image_single = get_sub_field('flipbook_page_image'); 
+                            $size ="large";
+                            $html = get_sub_field('flipbook_page_html');
+                            $url = get_sub_field('flipbook_page_url');
+                            if ( !empty($url) ){?>
+                                <div><iframe title="Page <?php echo $j; ?>" src="<?php echo $url ?>" style="position: absolute; height: 100%; width:100%" frameborder="0"></iframe></div>
+                            <?php } elseif( !empty($html) ){?>
+                                <div><?php echo $html; ?></div>
+                            <?php } else { ?>
+                                <div style="background-image: url(<?php echo $image_single['sizes'][ $size ] ?>)"></div>
+                            <?php } ?>
+                        <?php $j++; endwhile; ?> 
+                    <?php } ?>
                     <!-- END PAGES --> 
                 </div>
             </div>
@@ -106,8 +116,75 @@ function shortcode_handler($atts, $content='') {
     </div>
     <!-- END BOOK -->
 
+    <?php if (!empty($pdf_link)): ?>
+        <script>
+            function renderPage(pdfDoc, pageNum) {
+                var $canvas = jQuery('<canvas style="width: 100%; height: 100%" width="461px" height="600px"></canvas>');
+                var $newDiv = jQuery('<div style="width: 100%; height: 100%"></div>');
+                $canvas.appendTo($newDiv);
+                $newDiv.appendTo(jQuery('.flipbook'));
+                var context = jQuery($canvas)[0].getContext('2d');
+                
+                pdfDoc.getPage(pageNum).then(function(page) {
+                    var viewport = page.getViewport({ scale: 1, });
+                    // Support HiDPI-screens.
+                    var outputScale = window.devicePixelRatio || 1;
+
+                    var scaleW = $canvas[0].width / Math.floor(viewport.width * outputScale);
+                    var scaleH = $canvas[0].height / Math.floor(viewport.height * outputScale);
+                    
+                    var scale = 1;
+                    if (scaleW < scaleH) {
+                        scale = scaleW;
+                    } else {
+                        scale = scaleH;
+                    }
+                    var viewport = page.getViewport({ scale: scale, });
+                        
+
+                    //$canvas[0].width = Math.floor(viewport.width * outputScale);
+                    //$canvas[0].height = Math.floor(viewport.height * outputScale);
+                    //$canvas[0].style.width = Math.floor(viewport.width) + "px";
+                    //$canvas[0].style.height =  Math.floor(viewport.height) + "px";
+
+                    var transform = outputScale !== 1
+                        ? [outputScale, 0, 0, outputScale, 0, 0]
+                        : null;
+
+                    var renderContext = {
+                        canvasContext: context,
+                        transform: transform,
+                        viewport: viewport
+                    };
+
+                    page.render(renderContext);
+
+                });
+            }
+
+            var pdf_url = '<?php echo $pdf_link['url']; ?>';
+            var pdf_loading = true;
+            /**
+             * Asynchronously downloads PDF.
+             */
+            pdfjsLib.getDocument(pdf_url).promise.then(function(pdfDoc_) {
+                pdf_loading = false;
+                pdfDoc = pdfDoc_;
+                //document.getElementById('page_count').textContent = pdfDoc.numPages;
+                for (let index = 1; index <= pdfDoc.numPages; index++) {
+                    renderPage(pdfDoc, index);
+                }
+                loadApp();
+            });
+        </script>
+    <?php endif; ?>
+
+
+
     <script type="text/javascript">
     function loadApp() {
+        if (typeof pdf_loading !== 'undefined' && pdf_loading) return;
+
         // Create the flipbook
         jQuery('.flipbook').turn({
             // Width
@@ -169,7 +246,9 @@ function shortcode_handler($atts, $content='') {
     </script>
     
 
-    <?php $l++;	endwhile;
+    <?php 
+    $l++;
+    endwhile;
     // Restore original Query & Post Data
     wp_reset_query();
     wp_reset_postdata();

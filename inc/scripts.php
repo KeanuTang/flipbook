@@ -4,7 +4,8 @@ namespace flipbook;
 function register_scripts() {
   wp_register_script('jquery', 'https://code.jquery.com/jquery-3.7.0.min.js');
   wp_register_script('modernizr', JS.'modernizr.2.5.3.min.js');
-  wp_register_script(POST_TYPE.'-client', JS.'turn.min.js', array('jquery', 'modernizr'));
+  wp_register_script('pdfjs', JS.'pdf.js');
+  wp_register_script(POST_TYPE.'-client', JS.'turn.min.js', array('jquery', 'modernizr', 'pdfjs'));
 }
 
 function register_styles() {
