@@ -75,37 +75,6 @@ function shortcode_handler($atts, $content='') {
     
     ob_start();
 
-    ?>
-    <style>
-        .flipbook-viewport{
-            height: <?php echo $viewport_height; ?>px;
-        }
-        .flipbook-viewport .flipbook{
-            width: <?php echo $viewport_width; ?>px;
-            height: <?php echo $page_height; ?>px;
-            left: -<?php echo $page_width; ?>px;
-            top: -<?php echo $page_height/2; ?>px;
-        }
-        .flipbook-viewport .page{
-            width: <?php echo $page_width; ?>px;
-            height: <?php echo $page_height; ?>px;
-            background-color: <?php echo $background_color; ?>;
-        }
-        .flipbook-viewport .next-button,
-        .flipbook-viewport .previous-button{
-            height: <?php echo $page_height; ?>px;
-        }
-        .flipbook-viewport .previous-button-hover,
-        .flipbook-viewport .previous-button-down{
-            background-position:-4px <?php echo $page_height/2-32; ?>px;
-        }
-        .flipbook-viewport .next-button-hover,
-        .flipbook-viewport .next-button-down{
-            background-position:-38px <?php echo $page_height/2-32; ?>px;
-        }
-    </style>
-    <?php
-
     
     $l=0;
     // The Loop. Should really only return 1 post... But I guess written to support multiple
@@ -155,9 +124,11 @@ function shortcode_handler($atts, $content='') {
     <script>
         var page_height = <?php echo $page_height ?>;
         var page_width = <?php echo $page_width ?>;
-        var pdf_loading = true;
+        var pdf_loading;
 
     <?php if (!empty($pdf_link)): ?>
+        pdf_loading = true;
+
         function refreshViewportSize() {
             viewport_width = page_width * 2;
             viewport_height = page_height + 200;
@@ -280,6 +251,7 @@ function shortcode_handler($atts, $content='') {
             }
         });
 
+        <?php if (!empty($pdf_link)): ?>
         // Zoom.js
         jQuery('.flipbook-viewport').zoom({
             flipbook: jQuery('.flipbook'),
@@ -333,6 +305,7 @@ function shortcode_handler($atts, $content='') {
                 }
             }
         });
+        <?php endif; ?>
 
         // Using arrow keys to turn the page
         jQuery(document).keydown(function(e){
