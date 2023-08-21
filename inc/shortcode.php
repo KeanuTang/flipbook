@@ -64,9 +64,10 @@ function shortcode_handler($atts, $content='') {
     $the_query = new WP_Query( $args );
 
     //Set up the dimensions of everything
-    $page_width = 461;
-    $page_height = 600;
-    $viewport_width = 922;
+    if (empty($page_width)) $page_width = 461;
+    if (empty($page_height)) $page_height = 600;
+    
+    $viewport_width = $page_width * 2;
     $viewport_height = $page_height + 200;
     $background_color = "white";
 
@@ -122,22 +123,21 @@ function shortcode_handler($atts, $content='') {
 
     
     <script>
-        var page_height = <?php echo $page_height ?>;
-        var page_width = <?php echo $page_width ?>;
+        var page_height = <?php echo $page_height; ?>;
+        var page_width = <?php echo $page_width; ?>;
         var pdf_loading;
 
     <?php if (!empty($pdf_link)): ?>
         pdf_loading = true;
 
-        function refreshViewportSize() {
+        function setCSS() {
             viewport_width = page_width * 2;
             viewport_height = page_height + 200;
             console.log(viewport_width + ' ' + viewport_height + ' ' + page_width + ' ' + page_height);
             $viewport_div = jQuery('.flipbook-viewport');
-            //$viewport_div.height(viewport_height);
-            //$viewport_div.children('.flipbook').width(viewport_width).height(page_height).css({left: -page_width  + 'px', top: -page_height/2  + 'px'});
-            //$viewport_div.children('.page').width(page_width).height(page_height);
-            
+            $viewport_div.height(viewport_height);
+            $viewport_div.children('.flipbook').width(viewport_width).height(page_height).css({left: -page_width  + 'px', top: -page_height/2  + 'px'});
+            $viewport_div.children('.page').width(page_width).height(page_height);
         }
 
 
@@ -181,24 +181,18 @@ function shortcode_handler($atts, $content='') {
             pdfDoc = pdfDoc_;
             //document.getElementById('page_count').textContent = pdfDoc.numPages;
             for (let index = 1; index <= pdfDoc.numPages; index++) {
-                if (index == 1){
-                    pdfDoc.getPage(index).then(function(page) {
-                        var viewport = page.getViewport({ scale: 1 });
-                        var outputScale = window.devicePixelRatio || 1;
-                        //page_height = viewport.height * outputScale;
-                        //page_width = viewport.width * outputScale;
-                        refreshViewportSize();
-            pdf_loading = false;
-            loadApp();
-                    });
-                }
                 renderPage(pdfDoc, index);
             }
+            pdf_loading = false;
+            loadApp();
         });
     <?php endif; ?>
 
     function loadApp() {
         if (typeof pdf_loading !== 'undefined' && pdf_loading) return;
+
+        setCSS();
+
         // Create the flipbook
         jQuery('.flipbook').turn({
             // Width of two pages
