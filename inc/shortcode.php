@@ -41,12 +41,9 @@ function shortcode_handler($atts, $content='') {
         'book-template'=> 'default'
     ], $atts);
 
-    $page_width = 461;
-    $page_height = 600;
-
-    ob_start();
-
     $post_ID = $atts['id'];
+    
+    // The Query
     if ( is_user_logged_in() ) {
         $args = array(
             'post_type' => POST_TYPE,
@@ -64,19 +61,57 @@ function shortcode_handler($atts, $content='') {
             'p' => $post_ID,
         );
     }
-
-
-
-
-
-    // The Query
     $the_query = new WP_Query( $args );
+
+    //Set up the dimensions of everything
+    $page_width = 461;
+    $page_height = 600;
+    $viewport_width = 922;
+    $viewport_height = $page_height + 200;
+    $background_color = "white";
+
+    
+    $pdf_link = get_field('flipbook_pdf');
+    
+    ob_start();
+
+    ?>
+    <style>
+        .flipbook-viewport{
+            height: <?php echo $viewport_height; ?>px;
+        }
+        .flipbook-viewport .flipbook{
+            width: <?php echo $viewport_width; ?>px;
+            height: <?php echo $page_height; ?>px;
+            left: -<?php echo $page_width; ?>px;
+            top: -<?php echo $page_height/2; ?>px;
+        }
+        .flipbook-viewport .page{
+            width: <?php echo $page_width; ?>px;
+            height: <?php echo $page_height; ?>px;
+            background-color: <?php echo $background_color; ?>;
+        }
+        .flipbook-viewport .next-button,
+        .flipbook-viewport .previous-button{
+            height: <?php echo $page_height; ?>px;
+        }
+        .flipbook-viewport .previous-button-hover,
+        .flipbook-viewport .previous-button-down{
+            background-position:-4px <?php echo $page_height/2-32; ?>px;
+        }
+        .flipbook-viewport .next-button-hover,
+        .flipbook-viewport .next-button-down{
+            background-position:-38px <?php echo $page_height/2-32; ?>px;
+        }
+    </style>
+    <?php
+
+    
     $l=0;
-    // The Loop
+    // The Loop. Should really only return 1 post... But I guess written to support multiple
     while ( $the_query->have_posts() ) :
     
     $the_query->the_post(); 
-    $pdf_link = get_field('flipbook_pdf');
     ?>
 
     <!-- BEGIN BOOK -->
@@ -116,82 +151,90 @@ function shortcode_handler($atts, $content='') {
     </div>
     <!-- END BOOK -->
 
+    
+    <script>
+        var page_height = <?php echo $page_height ?>;
+        var page_width = <?php echo $page_width ?>;
+        var pdf_loading = true;
+
     <?php if (!empty($pdf_link)): ?>
-        <script>
-            function renderPage(pdfDoc, pageNum) {
-                var $canvas = jQuery('<canvas style="width: 100%; height: 100%" width="461px" height="600px"></canvas>');
-                var $newDiv = jQuery('<div style="width: 100%; height: 100%"></div>');
-                $canvas.appendTo($newDiv);
-                $newDiv.appendTo(jQuery('.flipbook'));
-                var context = jQuery($canvas)[0].getContext('2d');
-                
-                pdfDoc.getPage(pageNum).then(function(page) {
-                    var viewport = page.getViewport({ scale: 1, });
-                    // Support HiDPI-screens.
-                    var outputScale = window.devicePixelRatio || 1;
+        function refreshViewportSize() {
+            viewport_width = page_width * 2;
+            viewport_height = page_height + 200;
+            console.log(viewport_width + ' ' + viewport_height + ' ' + page_width + ' ' + page_height);
+            $viewport_div = jQuery('.flipbook-viewport');
+            //$viewport_div.height(viewport_height);
+            //$viewport_div.children('.flipbook').width(viewport_width).height(page_height).css({left: -page_width  + 'px', top: -page_height/2  + 'px'});
+            //$viewport_div.children('.page').width(page_width).height(page_height);
+            
+        }
 
-                    var scaleW = $canvas[0].width / Math.floor(viewport.width * outputScale);
-                    var scaleH = $canvas[0].height / Math.floor(viewport.height * outputScale);
+
+        function renderPage(pdfDoc, pageNum) {
+            var $canvas = jQuery('<canvas style="width: 100%; height: 100%"></canvas>');
+            var $newDiv = jQuery('<div style="width: 100%; height: 100%"></div>');
+            $canvas.appendTo($newDiv);
+            $newDiv.appendTo(jQuery('.flipbook'));
+            var context = jQuery($canvas)[0].getContext('2d');
+            
+            pdfDoc.getPage(pageNum).then(function(page) {
+                // Support HiDPI-screens.
+                var outputScale = window.devicePixelRatio || 1;
+                var viewport = page.getViewport({ scale: outputScale, });
                     
-                    var scale = 1;
-                    if (scaleW < scaleH) {
-                        scale = scaleW;
-                    } else {
-                        scale = scaleH;
-                    }
-                    var viewport = page.getViewport({ scale: scale, });
-                        
+                $canvas[0].width = Math.floor(viewport.width * outputScale);
+                $canvas[0].height = Math.floor(viewport.height * outputScale);
 
-                    //$canvas[0].width = Math.floor(viewport.width * outputScale);
-                    //$canvas[0].height = Math.floor(viewport.height * outputScale);
-                    //$canvas[0].style.width = Math.floor(viewport.width) + "px";
-                    //$canvas[0].style.height =  Math.floor(viewport.height) + "px";
+                var transform = outputScale !== 1
+                    ? [outputScale, 0, 0, outputScale, 0, 0]
+                    : null;
 
-                    var transform = outputScale !== 1
-                        ? [outputScale, 0, 0, outputScale, 0, 0]
-                        : null;
+                var renderContext = {
+                    canvasContext: context,
+                    transform: transform,
+                    viewport: viewport
+                };
 
-                    var renderContext = {
-                        canvasContext: context,
-                        transform: transform,
-                        viewport: viewport
-                    };
+                page.render(renderContext);
+                $canvas[0].style.width = "100%";
+                $canvas[0].style.height =  "100%";
 
-                    page.render(renderContext);
-
-                });
-            }
-
-            var pdf_url = '<?php echo $pdf_link['url']; ?>';
-            var pdf_loading = true;
-            /**
-             * Asynchronously downloads PDF.
-             */
-            pdfjsLib.getDocument(pdf_url).promise.then(function(pdfDoc_) {
-                pdf_loading = false;
-                pdfDoc = pdfDoc_;
-                //document.getElementById('page_count').textContent = pdfDoc.numPages;
-                for (let index = 1; index <= pdfDoc.numPages; index++) {
-                    renderPage(pdfDoc, index);
-                }
-                loadApp();
             });
-        </script>
+        }
+
+        var pdf_url = '<?php echo $pdf_link['url']; ?>';
+        /**
+         * Asynchronously downloads PDF.
+         */
+        pdfjsLib.getDocument(pdf_url).promise.then(function(pdfDoc_) {
+            pdfDoc = pdfDoc_;
+            //document.getElementById('page_count').textContent = pdfDoc.numPages;
+            for (let index = 1; index <= pdfDoc.numPages; index++) {
+                if (index == 1){
+                    pdfDoc.getPage(index).then(function(page) {
+                        var viewport = page.getViewport({ scale: 1 });
+                        var outputScale = window.devicePixelRatio || 1;
+                        //page_height = viewport.height * outputScale;
+                        //page_width = viewport.width * outputScale;
+                        refreshViewportSize();
+            pdf_loading = false;
+            loadApp();
+                    });
+                }
+                renderPage(pdfDoc, index);
+            }
+        });
     <?php endif; ?>
 
-
-
-    <script type="text/javascript">
     function loadApp() {
         if (typeof pdf_loading !== 'undefined' && pdf_loading) return;
-
         // Create the flipbook
         jQuery('.flipbook').turn({
-            // Width
-            width:922,
+            // Width of two pages
+            width: page_width*2,
             
             // Height
-            height:600,
+            height: page_height,
             
             // Elevation
             elevation: 50,
@@ -202,6 +245,114 @@ function shortcode_handler($atts, $content='') {
             // Auto center this flipbook
             autoCenter: true,
 
+            // Events
+			when: {
+                turning: function(event, page, view) { 
+                    var book = jQuery(this),
+                    currentPage = book.turn('page'),
+                    pages = book.turn('pages');
+
+                    // Update the current URI
+                    Hash.go('page/' + page).update();
+
+                    // Show and hide navigation buttons
+                    disableControls(page);
+                    
+                    jQuery('.thumbnails .page-'+currentPage).
+                        parent().
+                        removeClass('current');
+
+                    jQuery('.thumbnails .page-'+page).
+                        parent().
+                        addClass('current');
+                },
+
+                turned: function(event, page, view) {
+                    disableControls(page);
+
+                    jQuery(this).turn('center');
+
+                    if (page==1) { 
+                        jQuery(this).turn('peel', 'br');
+                    }
+
+                },
+            }
+        });
+
+        // Zoom.js
+        jQuery('.flipbook-viewport').zoom({
+            flipbook: jQuery('.flipbook'),
+            max: function() { 
+                return largeFlipbookWidth()/jQuery('.flipbook').width();
+            }, 
+            when: {
+                tap: function(event) {
+                    if (jQuery(this).zoom('value')==1) {
+                        jQuery('.flipbook').
+                            removeClass('animated').
+                            addClass('zoom-in');
+                            jQuery(this).zoom('zoomIn', event);
+                    } else {
+                        jQuery(this).zoom('zoomOut');
+                    }
+                },
+                resize: function(event, scale, page, pageElement) {
+                    
+                },
+                zoomIn: function () {
+                    jQuery('.thumbnails').hide();
+                    jQuery('.made').hide();
+                    jQuery('.flipbook').addClass('zoom-in');
+                    if (!window.escTip && !jQuery.isTouch) {
+                        escTip = true;
+                        jQuery('<div />', {'class': 'esc'}).
+                            html('<div>Press ESC to exit</div>').
+                                appendTo(jQuery('body')).
+                                delay(2000).
+                                animate({opacity:0}, 500, function() {
+                                    jQuery(this).remove();
+                                });
+                    }
+                },
+
+               zoomOut: function () {
+                    jQuery('.esc').hide();
+                    jQuery('.thumbnails').fadeIn();
+                    jQuery('.made').fadeIn();
+                    setTimeout(function(){
+                        jQuery('.flipbook').addClass('animated').removeClass('zoom-in');
+                        resizeViewport();
+                    }, 0);
+                },
+                swipeLeft: function() {
+                    jQuery('.flipbook').turn('next');
+                },
+                swipeRight: function() {  
+                    jQuery('.flipbook').turn('previous');
+                }
+            }
+        });
+
+        // Using arrow keys to turn the page
+        jQuery(document).keydown(function(e){
+            var previous = 37, next = 39, esc = 27;
+            switch (e.keyCode) {
+                case previous:
+                    // left arrow
+                    jQuery('.flipbook').turn('previous');
+                    e.preventDefault();
+                break;
+                case next:
+                    //right arrow
+                    jQuery('.flipbook').turn('next');
+                    e.preventDefault();
+                break;
+                case esc:
+                    jQuery('.flipbook-viewport').zoom('zoomOut');	
+                    e.preventDefault();
+                break;
+            }
         });
 
         // Events for the next button
@@ -237,7 +388,7 @@ function shortcode_handler($atts, $content='') {
         test : Modernizr.csstransforms,
         yep: [ '<?php echo JS.'turn.js' ?>' ],
         nope: [ '<?php echo JS.'turn.html4.min.js' ?>' ],
-        both: [ '<?php echo JS.'zoom.js' ?>', '<?php echo CSS.'turn.css' ?>' ],
+        both: [ '<?php echo JS.'zoom.js' ?>', '<?php echo JS.'custom-flipbook.js' ?>', '<?php echo JS.'hash.js' ?>', '<?php echo CSS.'turn.css' ?>' ],
         complete: loadApp
     });
 
