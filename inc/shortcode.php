@@ -93,12 +93,14 @@ function shortcode_handler($atts, $content='') {
                 <?php if (!empty($pdf_link)): ?>
                 <div><i class="zoom-icon fas fa-search-plus" title="Zoom"></i></div>
                 <?php endif; ?>
+                <div><i class="thumbnails-icon fas fa-list" title="Thumbnails"></i></div>
                 <div><i class="backward-icon fas fa-backward" title="Backward"></i></div>
                 <div class="pages">
                     <input type="text" class="number inpPage" maxlength="4" value="1" title="Current Page">
                     <input type="text" class="total inpPages" readonly="" maxlength="4" title="Total Number of Pages">
                 </div>
                 <div><i class="forward-icon fas fa-forward" title="Forward"></i></div>
+                <div><i class="fullscreen-icon fas fa-expand-arrows-alt" title="Fullscreen"></i></div>
                 <?php if (!empty($pdf_link)): ?>
                 <div><i class="download-icon fas fa-download" title="Download"></i></div>
                 <?php endif; ?>
@@ -386,6 +388,16 @@ function shortcode_handler($atts, $content='') {
             var page = this.value;
 			jQuery('.flipbook').turn('page', page);
         });
+        if (!document.fullscreenEnabled) {
+            jQuery('.fullscreen-icon').parent().hide();
+        }
+        jQuery('.fullscreen-icon').click(function() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                jQuery('.flipbook-viewport').get(0).requestFullscreen();
+            }
+        });
 
         // Events for the next button
         jQuery('.next-button').bind(jQuery.mouseEvents.over, function() {
@@ -413,6 +425,26 @@ function shortcode_handler($atts, $content='') {
             jQuery('.flipbook').turn('previous');
         });
 
+        if (document.addEventListener)
+        {
+            document.addEventListener('fullscreenchange', flipFullscreenIcon, false);
+        }
+        function flipFullscreenIcon(event) {
+            if (!document.fullscreenElement) {
+                jQuery('.fullscreen-icon').addClass("fa-expand-arrows-alt");
+                jQuery('.fullscreen-icon').removeClass("fa-compress-arrows-alt");
+                jQuery('.fullscreen-icon').attr('title', "Fullscreen");
+            } else {
+                jQuery('.fullscreen-icon').removeClass("fa-expand-arrows-alt");
+                jQuery('.fullscreen-icon').addClass("fa-compress-arrows-alt");
+                jQuery('.fullscreen-icon').attr('title', "Exit Fullscreen");
+            }
+        }
+
+        //Make the toolbar non-transparent if touch interface
+        if (jQuery.isTouch) {
+            jQuery('.flipbook-bar').css({opacity: 1});
+        }
 
     }
     // Load the HTML4 version if there's not CSS transform
@@ -423,8 +455,6 @@ function shortcode_handler($atts, $content='') {
         both: [ '<?php echo JS.'zoom.min.js' ?>', '<?php echo JS.'custom-flipbook.js' ?>', '<?php echo JS.'hash.js' ?>', '<?php echo CSS.'turn.css' ?>' ],
         complete: loadApp
     });
-
-    
 
     </script>
     
