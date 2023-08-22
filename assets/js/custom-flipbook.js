@@ -64,14 +64,7 @@ function resizeViewport() {
 
 	var flipbookOffset = jQuery('.flipbook').offset(),
 		boundH = height - flipbookOffset.top - jQuery('.flipbook').height(),
-		marginTop = (boundH - jQuery('.thumbnails > div').height()) / 2;
-
-	if (marginTop<0) {
-		jQuery('.thumbnails').css({height:1});
-	} else {
-		jQuery('.thumbnails').css({height: boundH});
-		jQuery('.thumbnails > div').css({marginTop: marginTop});
-	}
+		marginTop = (boundH) / 2;
 
 	if (flipbookOffset.top<jQuery('.made').height())
 		jQuery('.made').hide();

@@ -105,6 +105,55 @@ function shortcode_handler($atts, $content='') {
                 <div><i class="download-icon fas fa-download" title="Download"></i></div>
                 <?php endif; ?>
             </div>
+            <div class="thumbnails">
+                <div class="thumbnails-inner">
+                <?php if (empty($pdf_link) && have_rows('flipbook_pages')): 
+                    $j = 0;
+                    
+                    ?><div class="thumbnail-layout-wrapper current"><?  //Wrappers around each two pages
+
+                    while( have_rows('flipbook_pages') ): the_row(); 
+                        $j++;
+                        
+                        if ($j % 2 == 0) {
+                            ?><div class="thumbnail-layout-wrapper"><?php
+                        }
+
+                        $image_thumbnail = get_sub_field('flipbook_page_thumbnail'); 
+                        $image_single = get_sub_field('flipbook_page_image'); 
+                        $image_url = '';
+                        if (!empty($image_thumbnail)) {
+                            $image_url = $image_thumbnail['url'];
+                        } elseif (!empty($image_single)) {
+                            $image_url = $image_single['url'];
+                        } 
+                        $size ="large";
+                        $html = get_sub_field('flipbook_page_html');
+                        $url = get_sub_field('flipbook_page_url');
+                        
+                        if (!empty($image_url)) { ?>
+                            <div onclick="jQuery('.flipbook').turn('page', <?php echo $j; ?>);" class="page-<?php echo $j; ?> thumbnail-image" style="background-image: url(<?php echo $image_url; ?>)"></div>
+                        <?php } else { ?>
+                            <div onclick="jQuery('.flipbook').turn('page', <?php echo $j; ?>);" class="page-<?php echo $j; ?> thumbnail-text"><p>Page <?php echo $j; ?></p></div>
+                        <?php 
+                        } 
+
+
+                        if ($j % 2 == 1) {
+                            ?></div><?php
+                        }
+                        
+                    endwhile; 
+
+                    
+                    if ($j % 2 == 0) {
+                        ?></div><?php
+                    }
+                    
+                endif; 
+                ?>
+                </div>
+            </div>
             <div class="container">
                 <div class="flipbook">
                     <!-- Next button -->
@@ -115,12 +164,11 @@ function shortcode_handler($atts, $content='') {
                     <?php 
                     
                     if ( empty($pdf_link) && have_rows('flipbook_pages') ) {
-                        $j = 1;
-                        ?> 
-                        <?php while( have_rows('flipbook_pages') ): the_row(); 
-                            // vars
+                        $j = 0;
+                        while( have_rows('flipbook_pages') ): the_row(); 
+                            $j++;
+                            
                             $image_single = get_sub_field('flipbook_page_image'); 
-                            $size ="large";
                             $html = get_sub_field('flipbook_page_html');
                             $url = get_sub_field('flipbook_page_url');
                             if ( !empty($url) ){?>
@@ -128,9 +176,9 @@ function shortcode_handler($atts, $content='') {
                             <?php } elseif( !empty($html) ){?>
                                 <div><?php echo $html; ?></div>
                             <?php } else { ?>
-                                <div style="background-image: url(<?php echo $image_single['sizes'][ $size ] ?>)"></div>
+                                <div style="background-image: url(<?php echo $image_single['url'] ?>)"></div>
                             <?php } ?>
-                        <?php $j++; endwhile; ?> 
+                        <?php endwhile; ?> 
                     <?php } ?>
                     <!-- END PAGES --> 
                 </div>
@@ -194,6 +242,51 @@ function shortcode_handler($atts, $content='') {
                 page.render(renderContext);
                 $canvas[0].style.width = "100%";
                 $canvas[0].style.height =  "100%";
+
+            });
+
+            var $layoutWrapperThumbnail;
+            if ((pageNum == 1) || ((pageNum % 2) == 0)) {
+                $layoutWrapperThumbnail = jQuery('<div></div>');
+                $layoutWrapperThumbnail.addClass('thumbnail-layout-wrapper');
+                $layoutWrapperThumbnail.appendTo(jQuery('.thumbnails-inner'));
+                if (pageNum == 1) $layoutWrapperThumbnail.addClass("current");
+            } else {
+                $layoutWrapperThumbnail = jQuery('.thumbnail-layout-wrapper').last();
+            }
+            var $canvasThumbnail = jQuery('<canvas style="width: 200px; height: 250px"></canvas>');
+            var $linkThumbnail = jQuery('<a href="#page/' + pageNum + ' "></a>');
+            $linkThumbnail.click(function(event){
+                jQuery('.flipbook').turn('page', pageNum);
+                event.stopPropagation();
+            });
+            var $newDivThumbnail = jQuery('<div class="thumbnail-pdf page-' + pageNum + '"></div>');
+            $canvasThumbnail.appendTo($linkThumbnail);
+            $linkThumbnail.appendTo($newDivThumbnail);
+            $newDivThumbnail.appendTo($layoutWrapperThumbnail);
+            var contextThumbnail = jQuery($canvasThumbnail)[0].getContext('2d');
+            
+            pdfDoc.getPage(pageNum).then(function(page) {
+                // Support HiDPI-screens.
+                var outputScale = window.devicePixelRatio || 1;
+                var viewport = page.getViewport({ scale: outputScale, });
+                    
+                $canvasThumbnail[0].width = Math.floor(viewport.width * outputScale);
+                $canvasThumbnail[0].height = Math.floor(viewport.height * outputScale);
+
+                var transform = outputScale !== 1
+                    ? [outputScale, 0, 0, outputScale, 0, 0]
+                    : null;
+
+                var renderContext = {
+                    canvasContext: contextThumbnail,
+                    transform: transform,
+                    viewport: viewport
+                };
+
+                page.render(renderContext);
+                $canvasThumbnail[0].style.width = "100%";
+                $canvasThumbnail[0].style.height =  "100%";
 
             });
         }
@@ -298,7 +391,8 @@ function shortcode_handler($atts, $content='') {
                     
                 },
                 zoomIn: function () {
-                    jQuery('.thumbnails').hide();
+                    //jQuery('.thumbnails').hide();
+                    jQuery('.thumbnails').fadeOut(250, "linear");
                     jQuery('.made').hide();
                     jQuery('.flipbook').addClass('zoom-in');
                     jQuery('.flipbook').removeClass('animated').addClass('zoom-in');
@@ -317,7 +411,7 @@ function shortcode_handler($atts, $content='') {
 
                zoomOut: function () {
                     jQuery('.esc').hide();
-                    jQuery('.thumbnails').fadeIn();
+                    //jQuery('.thumbnails').fadeIn();
                     jQuery('.made').fadeIn();
                     jQuery('.zoom-icon').removeClass('fa-search-minus').addClass('fa-search-plus');
                     setTimeout(function(){
@@ -384,6 +478,10 @@ function shortcode_handler($atts, $content='') {
         jQuery('.backward-icon').click(function() {
             jQuery('.flipbook').turn('previous');
         });
+        jQuery('.thumbnails-icon').click(function(event) {
+            event.stopPropagation();
+            jQuery('.thumbnails').fadeToggle(250, "linear");
+        });
         jQuery('.pages input.number').change(function() {
             var page = this.value;
 			jQuery('.flipbook').turn('page', page);
@@ -425,6 +523,7 @@ function shortcode_handler($atts, $content='') {
             jQuery('.flipbook').turn('previous');
         });
 
+        //Hook when exiting fullscreen
         if (document.addEventListener)
         {
             document.addEventListener('fullscreenchange', flipFullscreenIcon, false);
@@ -441,10 +540,41 @@ function shortcode_handler($atts, $content='') {
             }
         }
 
+        //When clicking anywhere on the document (meant to catch clicking outside of the thumbnails div)
+        jQuery(document).click(function() {
+            jQuery('.thumbnails').fadeOut(250, "linear");
+        });
+        jQuery('.thumbnail-image').click(function(event) {
+            event.stopPropagation();
+        });
+        jQuery('.thumbnail-text').click(function(event) {
+            event.stopPropagation();
+        });
+
         //Make the toolbar non-transparent if touch interface
         if (jQuery.isTouch) {
             jQuery('.flipbook-bar').css({opacity: 1});
         }
+
+        // URIs - Format #/page/1 
+        Hash.on('^page\/([0-9]*)$', {
+            yep: function(path, parts) {
+                var page = parts[1];
+                    if (page != 1) {
+                        jQuery('.thumbnails .page-'+page).
+                            parent().
+                            addClass('current');
+                    }
+                if (page!==undefined) {
+                    if (jQuery('.flipbook').turn('is'))
+                    jQuery('.flipbook').turn('page', page);
+                }
+            },
+            nop: function(path) {
+                if (jQuery('.flipbook').turn('is'))
+                    jQuery('.flipbook').turn('page', 1);
+            }
+        });
 
     }
     // Load the HTML4 version if there's not CSS transform
