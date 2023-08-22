@@ -9,7 +9,8 @@ function register_scripts() {
 }
 
 function register_styles() {
-  wp_register_style(POST_TYPE.'-client', CSS.'turn.css');
+  wp_register_style('font-awesome', 'https://use.fontawesome.com/releases/v5.15.4/css/all.css');
+  wp_register_style(POST_TYPE.'-client', CSS.'turn.css', array('font-awesome'));
 }
 
 $fbglobal['registered_scripts_and_styles'] = false;

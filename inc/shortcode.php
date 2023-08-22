@@ -66,6 +66,8 @@ function shortcode_handler($atts, $content='') {
     //Set up the dimensions of everything
     if (empty($page_width)) $page_width = 461;
     if (empty($page_height)) $page_height = 600;
+    if (is_array(get_field( 'flipbook_pages' ))) $num_pages = count( get_field( 'flipbook_pages' ));
+    if (empty($num_pages)) $num_pages = 0;
     
     $viewport_width = $page_width * 2;
     $viewport_height = $page_height + 200;
@@ -87,6 +89,20 @@ function shortcode_handler($atts, $content='') {
     <!-- BEGIN BOOK -->
     <div class="page-wrapper">
         <div class="flipbook-viewport">
+            <div class="flipbook-bar">
+                <?php if (!empty($pdf_link)): ?>
+                <div><i class="zoom-icon fas fa-search-plus" title="Zoom"></i></div>
+                <?php endif; ?>
+                <div><i class="backward-icon fas fa-backward" title="Backward"></i></div>
+                <div class="pages">
+                    <input type="text" class="number inpPage" maxlength="4" value="1" title="Current Page">
+                    <input type="text" class="total inpPages" readonly="" maxlength="4" title="Total Number of Pages">
+                </div>
+                <div><i class="forward-icon fas fa-forward" title="Forward"></i></div>
+                <?php if (!empty($pdf_link)): ?>
+                <div><i class="download-icon fas fa-download" title="Download"></i></div>
+                <?php endif; ?>
+            </div>
             <div class="container">
                 <div class="flipbook">
                     <!-- Next button -->
@@ -126,9 +142,7 @@ function shortcode_handler($atts, $content='') {
         var page_height = <?php echo $page_height; ?>;
         var page_width = <?php echo $page_width; ?>;
         var pdf_loading;
-
-    <?php if (!empty($pdf_link)): ?>
-        pdf_loading = true;
+        var num_pages = <?php echo $num_pages; ?>;
 
         function setCSS() {
             viewport_width = page_width * 2;
@@ -140,6 +154,15 @@ function shortcode_handler($atts, $content='') {
             $viewport_div.children('.page').width(page_width).height(page_height);
         }
 
+    <?php if (!empty($pdf_link)): ?>
+        pdf_loading = true;
+
+        function downloadPDF() {
+            var link = document.createElement("a");
+            link.download = '<?php echo $pdf_link['filename']; ?>';
+            link.href = '<?php echo $pdf_link['url']; ?>';
+            link.click();
+        }
 
         function renderPage(pdfDoc, pageNum) {
             var $canvas = jQuery('<canvas style="width: 100%; height: 100%"></canvas>');
@@ -184,6 +207,7 @@ function shortcode_handler($atts, $content='') {
                 renderPage(pdfDoc, index);
             }
             pdf_loading = false;
+            num_pages = pdfDoc.numPages;
             loadApp();
         });
     <?php endif; ?>
@@ -192,6 +216,7 @@ function shortcode_handler($atts, $content='') {
         if (typeof pdf_loading !== 'undefined' && pdf_loading) return;
 
         setCSS();
+        jQuery('.flipbook-bar input.total').val(num_pages);
 
         // Create the flipbook
         jQuery('.flipbook').turn({
@@ -230,6 +255,8 @@ function shortcode_handler($atts, $content='') {
                     jQuery('.thumbnails .page-'+page).
                         parent().
                         addClass('current');
+
+                    jQuery('.pages input.number').val(page);
                 },
 
                 turned: function(event, page, view) {
@@ -241,11 +268,13 @@ function shortcode_handler($atts, $content='') {
                         jQuery(this).turn('peel', 'br');
                     }
 
+                    
                 },
             }
         });
 
         <?php if (!empty($pdf_link)): ?>
+        // Zoom only supported by PDF
         // Zoom.js
         jQuery('.flipbook-viewport').zoom({
             flipbook: jQuery('.flipbook'),
@@ -270,6 +299,8 @@ function shortcode_handler($atts, $content='') {
                     jQuery('.thumbnails').hide();
                     jQuery('.made').hide();
                     jQuery('.flipbook').addClass('zoom-in');
+                    jQuery('.flipbook').removeClass('animated').addClass('zoom-in');
+                    jQuery('.zoom-icon').removeClass('fa-search-plus').addClass('fa-search-minus');
                     if (!window.escTip && !jQuery.isTouch) {
                         escTip = true;
                         jQuery('<div />', {'class': 'esc'}).
@@ -286,6 +317,7 @@ function shortcode_handler($atts, $content='') {
                     jQuery('.esc').hide();
                     jQuery('.thumbnails').fadeIn();
                     jQuery('.made').fadeIn();
+                    jQuery('.zoom-icon').removeClass('fa-search-minus').addClass('fa-search-plus');
                     setTimeout(function(){
                         jQuery('.flipbook').addClass('animated').removeClass('zoom-in');
                         resizeViewport();
@@ -299,6 +331,27 @@ function shortcode_handler($atts, $content='') {
                 }
             }
         });
+        // Zoom icon
+        jQuery('.zoom-icon').bind('mouseover', function() { 
+            jQuery(this).addClass('zoom-hover');
+        }).bind('mouseout', function() { 
+            jQuery(this).removeClass('zoom-hover');
+        }).bind('click', function() {
+            if (jQuery(this).hasClass('fa-search-plus'))
+                jQuery('.flipbook-viewport').zoom('zoomIn');
+            else if (jQuery(this).hasClass('fa-search-minus'))	
+                jQuery('.flipbook-viewport').zoom('zoomOut');
+        });
+
+        // Download icon
+        jQuery('.download-icon').bind('mouseover', function() { 
+            jQuery(this).addClass('download-icon-hover');
+        }).bind('mouseout', function() { 
+            jQuery(this).removeClass('download-icon-hover');
+        }).bind('click', function() {
+            downloadPDF();
+        });
+
         <?php endif; ?>
 
         // Using arrow keys to turn the page
@@ -320,6 +373,18 @@ function shortcode_handler($atts, $content='') {
                     e.preventDefault();
                 break;
             }
+        });
+
+        // Events for toolbar
+        jQuery('.forward-icon').click(function() {
+            jQuery('.flipbook').turn('next');
+        });
+        jQuery('.backward-icon').click(function() {
+            jQuery('.flipbook').turn('previous');
+        });
+        jQuery('.pages input.number').change(function() {
+            var page = this.value;
+			jQuery('.flipbook').turn('page', page);
         });
 
         // Events for the next button
@@ -353,9 +418,9 @@ function shortcode_handler($atts, $content='') {
     // Load the HTML4 version if there's not CSS transform
     yepnope({
         test : Modernizr.csstransforms,
-        yep: [ '<?php echo JS.'turn.js' ?>' ],
+        yep: [ '<?php echo JS.'turn.min.js' ?>' ],
         nope: [ '<?php echo JS.'turn.html4.min.js' ?>' ],
-        both: [ '<?php echo JS.'zoom.js' ?>', '<?php echo JS.'custom-flipbook.js' ?>', '<?php echo JS.'hash.js' ?>', '<?php echo CSS.'turn.css' ?>' ],
+        both: [ '<?php echo JS.'zoom.min.js' ?>', '<?php echo JS.'custom-flipbook.js' ?>', '<?php echo JS.'hash.js' ?>', '<?php echo CSS.'turn.css' ?>' ],
         complete: loadApp
     });
 
