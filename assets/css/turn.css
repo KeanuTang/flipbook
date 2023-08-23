@@ -116,6 +116,18 @@
 	display:none;
 }
 
+.flipbook-page-iframe {
+	position: absolute;
+	height: 100%;
+	width: 100%;
+}
+.flipbook-page-overlay {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	z-index: 10;
+}
+
 .flipbook-bar {
 	position: absolute;
     width: 450px;

@@ -16,11 +16,18 @@ function enqueue_client_scripts() {
     }
 }
 
-
+// There are rendering methods, depending on the type of flipbook we are creating.
+// 1. PDF flipbook - this has less PHP code, and instead we rely in PDF.js library
+//    to load the PDF file, and then we use JavaScript to create all the HTML elements
+//    and render the PDF pages.
+// 2. Image/HTML/URL flipbook - this uses more PHP code to generate the HTML elements
+//    we need to render the flipbook. The URL pages have some complex JavaScript that
+//    goes along with it. 
 
 add_shortcode(POST_TYPE, '\flipbook\shortcode_handler');
 function shortcode_handler($atts, $content='') {
     global $fbglobal;
+    global $post;
     $fbglobal['load_client_scripts'] = TRUE;
 
     $atts = shortcode_atts([
@@ -101,9 +108,8 @@ function shortcode_handler($atts, $content='') {
                 </div>
                 <div><i class="forward-icon fas fa-forward" title="Forward"></i></div>
                 <div><i class="fullscreen-icon fas fa-expand-arrows-alt" title="Fullscreen"></i></div>
-                <?php if (!empty($pdf_link)): ?>
                 <div><i class="download-icon fas fa-download" title="Download"></i></div>
-                <?php endif; ?>
+                <?php if (!empty($pdf_link)): ?><?php endif; ?>
             </div>
             <div class="thumbnails">
                 <div class="thumbnails-inner">
@@ -119,8 +125,8 @@ function shortcode_handler($atts, $content='') {
                             ?><div class="thumbnail-layout-wrapper"><?php
                         }
 
-                        $image_thumbnail = get_sub_field('flipbook_page_thumbnail'); 
-                        $image_single = get_sub_field('flipbook_page_image'); 
+                        $image_thumbnail = strip_quotes(get_sub_field('flipbook_page_thumbnail')); 
+                        $image_single = strip_quotes(get_sub_field('flipbook_page_image')); 
                         $image_url = '';
                         if (!empty($image_thumbnail)) {
                             $image_url = $image_thumbnail['url'];
@@ -128,8 +134,8 @@ function shortcode_handler($atts, $content='') {
                             $image_url = $image_single['url'];
                         } 
                         $size ="large";
-                        $html = get_sub_field('flipbook_page_html');
-                        $url = get_sub_field('flipbook_page_url');
+                        $html = strip_quotes(get_sub_field('flipbook_page_html'));
+                        $url = strip_quotes(get_sub_field('flipbook_page_url'));
                         
                         if (!empty($image_url)) { ?>
                             <div onclick="jQuery('.flipbook').turn('page', <?php echo $j; ?>);" class="page-<?php echo $j; ?> thumbnail-image" style="background-image: url(<?php echo $image_url; ?>)"></div>
@@ -171,12 +177,33 @@ function shortcode_handler($atts, $content='') {
                             $image_single = get_sub_field('flipbook_page_image'); 
                             $html = get_sub_field('flipbook_page_html');
                             $url = get_sub_field('flipbook_page_url');
-                            if ( !empty($url) ){?>
-                                <div><iframe title="Page <?php echo $j; ?>" src="<?php echo $url ?>" style="position: absolute; height: 100%; width:100%" frameborder="0"></iframe></div>
+                            $url_div_id = get_sub_field('flipbook_page_div_id');
+                            if ( !empty($url) ){
+                                if ( empty($url_div_id) ){ ?>
+                                    <div>
+                                        <iframe class="flipbook-page flipbook-page-iframe" title="Page <?php echo $j; ?>" src="<?php echo $url ?>" frameborder="0" scrolling="no"></iframe>
+                                        <div class="flipbook-page-overlay"></div>
+                                    </div>
+                                <?php } else { 
+                                    $targetID = uniqid() . '-div';
+                                    ?>
+                                    <div>
+                                        <div id="<?php echo $targetID; ?>" class="flipbook-page flipbook-page-iframe" title="Page <?php echo $j; ?>"></div>
+                                        <div class="flipbook-page-overlay"></div>
+                                        <script>
+                                            if (window.addEventListener)
+                                            {
+                                                window.addEventListener('load', function() {
+                                                    embedIFrameContent('<?php echo $url; ?>', '<?php echo $url_div_id; ?>', '<?php echo $targetID; ?>')
+                                                });
+                                            }
+                                        </script>
+                                    </div>
+                                <?php } ?>
                             <?php } elseif( !empty($html) ){?>
-                                <div><?php echo $html; ?></div>
+                                <div class="flipbook-page"><?php echo $html; ?></div>
                             <?php } else { ?>
-                                <div style="background-image: url(<?php echo $image_single['url'] ?>)"></div>
+                                <div class="flipbook-page" style="background-image: url(<?php echo $image_single['url'] ?>)"></div>
                             <?php } ?>
                         <?php endwhile; ?> 
                     <?php } ?>
@@ -189,11 +216,14 @@ function shortcode_handler($atts, $content='') {
 
     
     <script>
+        /* JavaScript for Flipbook */
         var page_height = <?php echo $page_height; ?>;
         var page_width = <?php echo $page_width; ?>;
         var pdf_loading;
         var num_pages = <?php echo $num_pages; ?>;
 
+        
+        /* Set up the necessary CSS for the viewport based on the defined height and width */
         function setCSS() {
             viewport_width = page_width * 2;
             viewport_height = page_height + 200;
@@ -205,8 +235,11 @@ function shortcode_handler($atts, $content='') {
         }
 
     <?php if (!empty($pdf_link)): ?>
+        /** Special JS when loading a PDF as a flipbook */
         pdf_loading = true;
+        var pdf_url = '<?php echo $pdf_link['url']; ?>';
 
+        /** This function is invoked when the user clicks to download the PDF */
         function downloadPDF() {
             var link = document.createElement("a");
             link.download = '<?php echo $pdf_link['filename']; ?>';
@@ -214,6 +247,10 @@ function shortcode_handler($atts, $content='') {
             link.click();
         }
 
+        /** 
+         * Given a PDF document object, render the specific page to the main 
+         * flipbook canvas element as well as the thumbnail canvas.
+         */
         function renderPage(pdfDoc, pageNum) {
             var $canvas = jQuery('<canvas style="width: 100%; height: 100%"></canvas>');
             var $newDiv = jQuery('<div style="width: 100%; height: 100%"></div>');
@@ -292,13 +329,13 @@ function shortcode_handler($atts, $content='') {
             });
         }
 
-        var pdf_url = '<?php echo $pdf_link['url']; ?>';
         /**
-         * Asynchronously downloads PDF.
+         * Asynchronously downloads PDF. Once loaded, triggers rendering
+         * of the canvas elements that will hold the PDF pages, and also 
+         * triggers the loading of the flipbook JS app.
          */
         pdfjsLib.getDocument(pdf_url).promise.then(function(pdfDoc_) {
             pdfDoc = pdfDoc_;
-            //document.getElementById('page_count').textContent = pdfDoc.numPages;
             for (let index = 1; index <= pdfDoc.numPages; index++) {
                 renderPage(pdfDoc, index);
             }
@@ -306,8 +343,91 @@ function shortcode_handler($atts, $content='') {
             num_pages = pdfDoc.numPages;
             loadApp();
         });
+    <?php else: ?>
+        /** Special JS when iFrame-based flipbook */
+        function embedIFrameContent(fetchurl, embedSourceDiv, embedDestinationDiv){
+            let embedDivObj = document.getElementById(embedDestinationDiv);
+            if (!embedDivObj) {
+                LogError("Failed to get the Destination DIV object. ID: " + embedDestinationDiv);
+                return;
+            }
+            
+            fetch(fetchurl, { })
+                .then(response => {
+                if (!response.ok) {
+                    throw new Error("Error occured with getting content of the source URL!");
+                }
+                return response.text();
+                })
+                .then(text => {
+                const embedparser = new DOMParser();
+                const page = embedparser.parseFromString(text, "text/html");
+                const content = page.getElementById(embedSourceDiv);
+                
+                //Approach 1 - inject the code into the page
+                //embedDivObj.innerHTML = content.innerHTML;
+                //End Approach 1
+                
+                //Approach 2 - wrap the content with an iframe
+                embedDivObj.innerHTML = '';
+                const iframe = document.createElement("iframe");
+                //iframe.src = fetchurl;
+                page.body.innerHTML = content.innerHTML;  //Remove all the body content except for the specific source div we want to preserve
+                iframe.srcdoc = page.documentElement.outerHTML;
+                embedDivObj.appendChild(iframe);
+                embedDivObj.height = '100%';
+                embedDivObj.width = '100%';
+                
+                jQuery(iframe).css({
+                    //transition: 'all .5s linear',
+                    border: 'none',
+                    width: '100%'
+                });
+                jQuery(iframe).load(function() {
+                    jQuery(iframe).height( jQuery(iframe).contents().height() );  //Immediately resize to the document height...
+                    function delayed_resize(obj, counter, delay) {
+                    //Delayed resize, in case there's javascript that triggers page rendering that changes the size
+                    jQuery(obj).height( jQuery(obj).contents().height() );
+                    if (counter > 0) {
+                        window.setTimeout( delayed_resize, delay , obj, counter-1); 
+                    }
+                    }
+                    window.setTimeout( delayed_resize, 100 , this, 20, 100); // Retry for 2 seconds (20*100milliseconds)
+                });
+                //End Approach 2
+                })
+                .catch(error => {
+                    embedDivObj.innerHTML = 'Error occured with getting content of the source URL!';
+                    console.error(error);
+                });
+                
+        }
+
+        /** 
+         * This function is invoked when the user clicks to download the PDF. Will
+         * stich together the PDF based on the content that's loaded.
+         */
+        const { PDFDocument } = PDFLib;
+        async function downloadPDF() {
+            const pdfDoc = await PDFDocument.create();
+
+            jQuery(".flipbook-page").each(function(index, value) {
+                // Add a blank page to the document
+                const page = pdfDoc.addPage();
+                page.drawText(jQuery(value).html());
+            });
+
+            // Serialize the PDFDocument to bytes (a Uint8Array)
+            const pdfBytes = await pdfDoc.save();
+
+            // Trigger the browser to download the PDF document
+            download(pdfBytes, '<?php echo $post->post_name; ?>', "application/pdf");
+        }
     <?php endif; ?>
 
+    /**
+     * Core loading of the flipbook JS app.
+     */
     function loadApp() {
         if (typeof pdf_loading !== 'undefined' && pdf_loading) return;
 
@@ -439,6 +559,7 @@ function shortcode_handler($atts, $content='') {
             else if (jQuery(this).hasClass('fa-search-minus'))	
                 jQuery('.flipbook-viewport').zoom('zoomOut');
         });
+        <?php endif; ?>
 
         // Download icon
         jQuery('.download-icon').bind('mouseover', function() { 
@@ -449,7 +570,6 @@ function shortcode_handler($atts, $content='') {
             downloadPDF();
         });
 
-        <?php endif; ?>
 
         // Using arrow keys to turn the page
         jQuery(document).keydown(function(e){
@@ -606,4 +726,8 @@ function shortcode_handler($atts, $content='') {
 
 function to_single_quotes($s) {
     return str_replace('"', '\'', $s);
+}
+
+function strip_quotes($s) {
+    return str_replace('\'', '', str_replace('"', '', $s));
 }
