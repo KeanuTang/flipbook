@@ -407,21 +407,22 @@ function shortcode_handler($atts, $content='') {
          * This function is invoked when the user clicks to download the PDF. Will
          * stich together the PDF based on the content that's loaded.
          */
-        const { PDFDocument } = PDFLib;
-        async function downloadPDF() {
-            const pdfDoc = await PDFDocument.create();
+        window.jsPDF = window.jspdf.jsPDF;
+        function downloadPDF() {
+            var doc = new jsPDF();
+            var content;
 
             jQuery(".flipbook-page").each(function(index, value) {
-                // Add a blank page to the document
-                const page = pdfDoc.addPage();
-                page.drawText(jQuery(value).html());
+                content = content + jQuery(value).html();
             });
 
-            // Serialize the PDFDocument to bytes (a Uint8Array)
-            const pdfBytes = await pdfDoc.save();
-
-            // Trigger the browser to download the PDF document
-            download(pdfBytes, '<?php echo $post->post_name; ?>', "application/pdf");
+            doc.html(content, {
+            callback: function (doc) {
+                doc.save();
+            },
+            x: 10,
+            y: 10
+            });
         }
     <?php endif; ?>
 
