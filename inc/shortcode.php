@@ -269,8 +269,9 @@ function shortcode_handler($atts, $content='') {
             pdfDoc.getPage(pageNum).then(function(page) {
                 // Support HiDPI-screens.
                 var outputScale = window.devicePixelRatio || 1;
-                var viewport = page.getViewport({ scale: outputScale, });
-                    
+                var viewport = page.getViewport({ scale: 1, });
+                viewport = page.getViewport({ scale: (200/viewport.width/outputScale), });
+                
                 $canvasThumbnail[0].width = Math.floor(viewport.width * outputScale);
                 $canvasThumbnail[0].height = Math.floor(viewport.height * outputScale);
 
